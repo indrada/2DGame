@@ -1,8 +1,11 @@
 #include "map.hpp"
 #include "water.hpp"
 #include <ctime>
+#include <SFML/Window/Event.hpp>
+#include <SFML/Window/Mouse.hpp>
+#include <SFML/Window/Keyboard.hpp>
 
-void drawMap(sf::RenderWindow& win, worldMap toDisplay, mapMode& mode){
+sf::RectangleShape * drawMap(sf::RenderWindow& win, worldMap toDisplay, mapMode& mode){
     auto size = win.getView().getSize();
     float rowH = size.y/toDisplay.verticalSize;
     float colW = size.x/toDisplay.horizontalSize;
@@ -21,14 +24,34 @@ void drawMap(sf::RenderWindow& win, worldMap toDisplay, mapMode& mode){
     {
         win.draw(rectangles[i]);
     }
+    return rectangles;
 }
 
-std::string getInfoString(worldMap map, sf::Vector2f size)
+void updateRectangle(worldMap toDisplay, mapMode& mode, sf::RectangleShape* rectangles, int xPos, int yPos)
 {
+    int index = xPos + yPos * toDisplay.horizontalSize;
+    rectangles[index].setFillColor(mode.getTileColor(xPos, yPos, toDisplay));
+}
+
+void drawRectangles(sf::RenderWindow& win, worldMap toDisplay, sf::RectangleShape* rectangles)
+{
+    for (int i = 0; i < toDisplay.horizontalSize * toDisplay.verticalSize; i++)
+    {
+        win.draw(rectangles[i]);
+    }
+}
+
+tile* getTileAtMousePosition(worldMap map, sf::Vector2f size)
+{
+
     auto mousePos = sf::Mouse::getPosition();
-    int xPos = (int) (map.horizontalSize * mousePos.x/size.x);
+    int xPos = (int)(map.horizontalSize * mousePos.x / size.x);
     int yPos = (int)(map.verticalSize * mousePos.y / size.y);
-    tile currentTile = map.mapTiles[xPos + yPos * map.horizontalSize];
+    return map.tileAt(xPos, yPos);
+}
+
+std::string getInfoString(worldMap map, tile currentTile)
+{
     std::string retval = "Elevation: " + std::to_string(currentTile.elevation);
     retval += "\nWater Depth: " + std::to_string(currentTile.waterDepth());
     if (map.resourceNames.size() > 0)
@@ -51,19 +74,26 @@ int main()
     rain(myMap, 0.5f);
     Resource iron("iron", 1.0f);
     iron.registerResource(&myMap);
-    person newPerson(20, 20, &myMap);
-    addPerson(&newPerson);
+    person * newPerson= new person(20, 20, &myMap);
+    addPerson(newPerson);
     mapMode * myMapMode = new defaultMap();
     auto size = window.getView().getSize();
     sf::Font font("Assets/arial.ttf");
     sf::Text infoOverlay(font);
     infoOverlay.setCharacterSize(120);
-    infoOverlay.setFillColor(sf::Color::Red);
+    infoOverlay.setFillColor(sf::Color::White);
+    infoOverlay.setOutlineColor(sf::Color::Black);
+    infoOverlay.setOutlineThickness(3);
     infoOverlay.setStyle(sf::Text::Bold);
     infoOverlay.setPosition({0.75f*size.x,0.0f});
     infoOverlay.setScale({0.25f,0.25f});
     std::string infoString = "";
     infoOverlay.setString(infoString);
+    tile hoveredTile = *getTileAtMousePosition(myMap, size);
+    tile selectedTile;
+    person* selectedPerson = NULL;
+    
+    sf::RectangleShape* mapRectangles = drawMap(window, myMap, *myMapMode);
     while (window.isOpen())
     {
         while (const std::optional event = window.pollEvent())
@@ -72,11 +102,46 @@ int main()
             {
                 window.close();
             }
+            if (event->is<sf::Event::MouseButtonPressed>()) {
+                if (event->getIf< sf::Event::MouseButtonPressed>()->button == sf::Mouse::Button::Left) {
+                    selectedTile = *getTileAtMousePosition(myMap, size);
+                    selectedPerson = selectedTile.personHere;
+                    printf("Selected Tile at %d, %d\n", selectedTile.xPos, selectedTile.yPos);  
+                }
+            }
+
+        }
+        if (selectedPerson != NULL)
+        {
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Left))
+            {
+                (new moveTask(0, selectedPerson, WEST))->doTask();
+                updateRectangle(myMap, *myMapMode, mapRectangles, selectedPerson->xPos+1, selectedPerson->yPos);
+                updateRectangle(myMap, *myMapMode, mapRectangles, selectedPerson->xPos, selectedPerson->yPos);
+            }
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Right))
+            {
+                (new moveTask(0, selectedPerson, EAST))->doTask();
+                updateRectangle(myMap, *myMapMode, mapRectangles, selectedPerson->xPos - 1, selectedPerson->yPos);
+                updateRectangle(myMap, *myMapMode, mapRectangles, selectedPerson->xPos, selectedPerson->yPos);
+            }
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Up))
+            {
+                (new moveTask(0, selectedPerson, NORTH))->doTask();
+                updateRectangle(myMap, *myMapMode, mapRectangles, selectedPerson->xPos, selectedPerson->yPos + 1);
+                updateRectangle(myMap, *myMapMode, mapRectangles, selectedPerson->xPos, selectedPerson->yPos);
+            }
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Down))
+            {
+                (new moveTask(0, selectedPerson, SOUTH))->doTask();
+                updateRectangle(myMap, *myMapMode, mapRectangles, selectedPerson->xPos, selectedPerson->yPos - 1);
+                updateRectangle(myMap, *myMapMode, mapRectangles, selectedPerson->xPos, selectedPerson->yPos);
+            }
         }
 
-        drawMap(window, myMap, *myMapMode);
-        
-        infoString = getInfoString(myMap,size);
+        drawRectangles(window, myMap, mapRectangles);
+        hoveredTile = *getTileAtMousePosition(myMap, size);
+        infoString = getInfoString(myMap,hoveredTile);
         infoOverlay.setString(infoString);
         window.draw(infoOverlay);
         window.display();

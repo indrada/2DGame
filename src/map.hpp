@@ -14,6 +14,8 @@ class person;
 class tile
 {
 public:
+    int xPos;
+    int yPos;
     float elevation;
     float waterLevel;
     person* personHere;
@@ -21,6 +23,18 @@ public:
     inline float waterDepth()
     {
         return waterLevel - elevation;
+    }
+    tile()
+    {
+
+    }
+    tile(int x, int y, float elevation = 0.0f, float waterLevel = 0.0f, person* personHere = NULL)
+    {
+        xPos = x;
+        yPos = y;
+        this->elevation = elevation;
+        this->personHere = personHere;
+        this->waterLevel = waterLevel;
     }
 };
 
@@ -37,7 +51,7 @@ public:
         this->mapTiles = (tile*)malloc(horizontalSize * verticalSize * sizeof(tile));
         for (int i = 0; i < verticalSize * horizontalSize; i++)
         {
-            new (mapTiles + i) tile();
+            new (mapTiles + i) tile(i%horizontalSize,i/horizontalSize);
         }
         this->horizontalSize = horizontalSize;
         this->verticalSize = verticalSize;
@@ -150,7 +164,7 @@ class person
         int xPos;
         int yPos;
         std::vector<attribute> attributes;
-        task* tasks;
+        std::vector<task> tasks;
         worldMap * attachedMap;
         person();
         person(int xPos, int yPos, worldMap * attachedMap)
@@ -175,6 +189,10 @@ class task
     public:
         int timeToComplete;
         person* assignedPerson;
+        task() 
+        {
+
+        }
         task(int timeToComplete, person* assignedPerson)
         {
             this->timeToComplete = timeToComplete;
@@ -188,58 +206,61 @@ class task
                 doTask();
             }
         }
-        virtual void doTask();
+        virtual void doTask() = 0;
 };
 
-class moveTask : task
+class moveTask : virtual public task
 {
-public:
-    int timeToComplete;
-    person* assignedPerson;
-    direction directionToMove;
+    public:
+        int timeToComplete;
+        person* assignedPerson;
+        direction directionToMove;
 
-    moveTask(int timeToComplete, person* assignedPerson, direction directionToMove) : task(timeToComplete, assignedPerson)
-    {
-        this->directionToMove = directionToMove;
-
-    }
-
-    void doTask() override
-    {
-        switch (directionToMove)
+        moveTask(int timeToComplete, person* assignedPerson, direction directionToMove)
         {
-        case NORTH:
-            if (assignedPerson->yPos == 0) return;
-            assignedPerson->attachedMap->tileAt(assignedPerson->xPos, assignedPerson->yPos)->personHere = NULL;
-            assignedPerson->attachedMap->tileAt(assignedPerson->xPos, assignedPerson->yPos - 1)->personHere = assignedPerson;
-            assignedPerson->yPos--;
-            return;
-            break;
-        case SOUTH:
-            if (assignedPerson->yPos == assignedPerson->attachedMap->verticalSize) return;
-            assignedPerson->attachedMap->tileAt(assignedPerson->xPos, assignedPerson->yPos)->personHere = NULL;
-            assignedPerson->attachedMap->tileAt(assignedPerson->xPos, assignedPerson->yPos + 1)->personHere = assignedPerson;
-            assignedPerson->yPos++;
-            return;
-            break;
-        case WEST:
-            if (assignedPerson->xPos == 0) return;
-            assignedPerson->attachedMap->tileAt(assignedPerson->xPos, assignedPerson->yPos)->personHere = NULL;
-            assignedPerson->attachedMap->tileAt(assignedPerson->xPos - 1, assignedPerson->yPos)->personHere = assignedPerson;
-            assignedPerson->xPos--;
-            return;
-            break;
-        case EAST:
-            if (assignedPerson->xPos == assignedPerson->attachedMap->verticalSize) return;
-            assignedPerson->attachedMap->tileAt(assignedPerson->xPos, assignedPerson->yPos)->personHere = NULL;
-            assignedPerson->attachedMap->tileAt(assignedPerson->xPos + 1, assignedPerson->yPos)->personHere = assignedPerson;
-            assignedPerson->xPos++;
-            return;
-            break;
-        default:
-            return;
+            this->directionToMove = directionToMove;
+            this->timeToComplete = timeToComplete;
+            this->assignedPerson = assignedPerson;
+
         }
-    }
+
+        void doTask() override
+        {
+
+            switch (directionToMove)
+            {
+            case NORTH:
+                if (assignedPerson->yPos == 0) return;
+                assignedPerson->attachedMap->tileAt(assignedPerson->xPos, assignedPerson->yPos)->personHere = NULL;
+                assignedPerson->attachedMap->tileAt(assignedPerson->xPos, assignedPerson->yPos - 1)->personHere = assignedPerson;
+                assignedPerson->yPos--;
+                return;
+                break;
+            case SOUTH:
+                if (assignedPerson->yPos == assignedPerson->attachedMap->verticalSize) return;
+                assignedPerson->attachedMap->tileAt(assignedPerson->xPos, assignedPerson->yPos)->personHere = NULL;
+                assignedPerson->attachedMap->tileAt(assignedPerson->xPos, assignedPerson->yPos + 1)->personHere = assignedPerson;
+                assignedPerson->yPos++;
+                return;
+                break;
+            case WEST:
+                if (assignedPerson->xPos == 0) return;
+                assignedPerson->attachedMap->tileAt(assignedPerson->xPos, assignedPerson->yPos)->personHere = NULL;
+                assignedPerson->attachedMap->tileAt(assignedPerson->xPos - 1, assignedPerson->yPos)->personHere = assignedPerson;
+                assignedPerson->xPos--;
+                return;
+                break;
+            case EAST:
+                if (assignedPerson->xPos == assignedPerson->attachedMap->verticalSize) return;
+                assignedPerson->attachedMap->tileAt(assignedPerson->xPos, assignedPerson->yPos)->personHere = NULL;
+                assignedPerson->attachedMap->tileAt(assignedPerson->xPos + 1, assignedPerson->yPos)->personHere = assignedPerson;
+                assignedPerson->xPos++;
+                return;
+                break;
+            default:
+                return;
+            }
+        }
 };
 
 
