@@ -31,10 +31,8 @@ std::string getInfoString(worldMap map, sf::Vector2f size)
     tile currentTile = map.mapTiles[xPos + yPos * map.horizontalSize];
     std::string retval = "Elevation: " + std::to_string(currentTile.elevation);
     retval += "\nWater Depth: " + std::to_string(currentTile.waterDepth());
-    printf("Here44");
     if (map.resourceNames.size() > 0)
     {
-        printf("Here99");
         retval += "\nResources:";
         for (int i = 0; i < map.resourceNames.size(); i++)
         {
@@ -50,9 +48,9 @@ int main()
     auto window = sf::RenderWindow(sf::VideoMode::getFullscreenModes()[0], "Test1",sf::Style::None);
     window.setFramerateLimit(144);
     worldMap myMap(100,100,10.0f);
-    waterPopulator().rain(myMap, 0.5f);
+    rain(myMap, 0.5f);
     Resource iron("iron", 1.0f);
-    iron.registerResource(myMap);
+    iron.registerResource(&myMap);
     person newPerson(20, 20, &myMap);
     addPerson(&newPerson);
     mapMode * myMapMode = new defaultMap();

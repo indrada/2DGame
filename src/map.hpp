@@ -310,30 +310,33 @@ public:
         this->isClustered = isClustered;
         this->clusterFrequency = clusterFrequency;
     }
-    void registerResource(worldMap map)
+    void registerResource(worldMap * map)
     {
-        map.resourceNames.push_back(name);
+        printf("%d", map->resourceNames.size());
+        map->resourceNames.push_back(name);
 
-        int resourceIndex = map.resourceNames.size() - 1;
 
-        for (int i = 0; i < map.verticalSize * map.horizontalSize; i++)
+
+        int resourceIndex = map->resourceNames.size() - 1;
+
+        for (int i = 0; i < map->verticalSize * map->horizontalSize; i++)
         {
-            map.mapTiles[i].resourceQuantity.push_back(0.0f);
+            map->mapTiles[i].resourceQuantity.push_back(0.0f);
         }
 
-        for (int i = 0; i < map.verticalSize * map.horizontalSize; i++)
+        for (int i = 0; i < map->verticalSize * map->horizontalSize; i++)
         {
             if (RandomNumber(0.0f, 1.0f) < clusterFrequency)
             {
-                for (int j = 0; j < map.verticalSize * map.horizontalSize; j++)
+                for (int j = 0; j < map->verticalSize * map->horizontalSize; j++)
                 {
                     if (i != j)
                     {
-                        (map.mapTiles[j].resourceQuantity)[resourceIndex] += abundance / (abs((i % map.horizontalSize) - (j % map.horizontalSize)) + abs((i / map.horizontalSize) - (j / map.horizontalSize)));
+                        (map->mapTiles[j].resourceQuantity)[resourceIndex] += abundance / (abs((i % map->horizontalSize) - (j % map->horizontalSize)) + abs((i / map->horizontalSize) - (j / map->horizontalSize)));
                     }
                     else
                     {
-                        (map.mapTiles[j].resourceQuantity)[resourceIndex] += abundance * 2;
+                        (map->mapTiles[j].resourceQuantity)[resourceIndex] += abundance * 2;
                     }
                 }
             }
