@@ -58,9 +58,9 @@ void waterFlow(worldMap map, int numIter = 25, float flowAmount = 0.5f)
                 northDifference = std::min(northTile->waterDepth(), flowAmount * (northTile->waterLevel - thisTile->waterLevel));
                 totalDifference += northDifference;
             }
-            if (-totalDifference > thisTile->waterDepth())
+            if (-3*totalDifference > thisTile->waterDepth())
             {
-                fractionOfOutflowAvailable = -thisTile->waterDepth() / totalDifference;
+                fractionOfOutflowAvailable = -thisTile->waterDepth() / (3*totalDifference);
                 totalDifference = -thisTile->waterDepth();
                 westDifference *= fractionOfOutflowAvailable;
                 southDifference *= fractionOfOutflowAvailable;
@@ -94,7 +94,12 @@ void rain(worldMap map, float amount = 1.0f)
     {
         map.mapTiles[i].waterLevel += amount;
     }
-    waterFlow(map,50, 0.1f);
+    waterFlow(map, 200, 0.1f);
+    for (int i = 0; i < map.verticalSize * map.horizontalSize; i++)
+    {
+        map.mapTiles[i].waterLevel = std::max(map.mapTiles[i].elevation, map.mapTiles[i].waterLevel - 0.05f * amount);
+    }
+
 }
 
 

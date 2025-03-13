@@ -2,6 +2,7 @@
 #define worldMap_h
 #include <map>
 #include <vector>
+#include <deque>
 #include <string>
 #include <math.h>
 #include <random>
@@ -10,6 +11,17 @@
 #include <SFML/graphics.hpp>
 
 class person;
+
+class worldMap;
+
+class mapMode
+{
+    public:
+        virtual sf::Color getTileColor(int x, int y, worldMap toDisplay) = 0;
+};
+
+
+
 
 class tile
 {
@@ -44,10 +56,13 @@ public:
     tile* mapTiles;
     int horizontalSize;
     int verticalSize;
+    mapMode * mode;
     std::vector<std::string> resourceNames;
     std::vector<int> shuffledIndices;
-    worldMap(int horizontalSize, int verticalSize, float terrainElevation = 5.0f)
+    sf::RectangleShape* rectangles;
+    worldMap(sf::RenderWindow& window, int horizontalSize, int verticalSize,  mapMode* mode,float terrainElevation = 5.0f)
     {
+        this->mode = mode;
         this->mapTiles = (tile*)malloc(horizontalSize * verticalSize * sizeof(tile));
         for (int i = 0; i < verticalSize * horizontalSize; i++)
         {
@@ -62,7 +77,32 @@ public:
             mapTiles[i].waterLevel = mapTiles[i].elevation;
             shuffledIndices.push_back(i);
         }
+        getRectangles(window, *mode);
     }
+
+    void getRectangles(sf::RenderWindow& win, mapMode& mode) {
+        auto size = win.getView().getSize();
+        float rowH = size.y / verticalSize;
+        float colW = size.x / horizontalSize;
+        rectangles = (sf::RectangleShape*)malloc(horizontalSize * verticalSize * sizeof(sf::RectangleShape));
+        for (int i = 0; i < verticalSize; i++)
+        {
+            for (int j = 0; j < horizontalSize; j++)
+            {
+                new (rectangles + i * horizontalSize + j) sf::RectangleShape({ colW,rowH });
+                (*(rectangles + i * horizontalSize + j)).setPosition({ colW * j,rowH * i });
+                (*(rectangles + i * horizontalSize + j)).setFillColor(mode.getTileColor(j, i, *this));
+            }
+        }
+
+    }
+
+    void updateRectangle(int xPos, int yPos)
+    {
+        int index = xPos + yPos * horizontalSize;
+        rectangles[index].setFillColor(mode->getTileColor(xPos, yPos, *this));
+    }
+
 
     float generateResourceQuantity(float abundance, bool isClustered)
     {
@@ -156,7 +196,30 @@ class attribute
         int health;
 };
 
-class task;
+class task
+{
+public:
+    int timeToComplete;
+    person* assignedPerson;
+    task()
+    {
+
+    }
+    task(int timeToComplete, person* assignedPerson)
+    {
+        this->timeToComplete = timeToComplete;
+        this->assignedPerson = assignedPerson;
+    }
+    void progressTime(int timeToProgress)
+    {
+        timeToComplete -= timeToProgress;
+        if (timeToComplete <= 0)
+        {
+            doTask();
+        }
+    }
+    virtual int doTask() = 0;
+};
 
 class person
 {
@@ -164,7 +227,7 @@ class person
         int xPos;
         int yPos;
         std::vector<attribute> attributes;
-        std::vector<task> tasks;
+        std::deque<task *> tasks;
         worldMap * attachedMap;
         person();
         person(int xPos, int yPos, worldMap * attachedMap)
@@ -172,6 +235,29 @@ class person
             this->attachedMap = attachedMap;
             this->xPos = xPos;
             this->yPos = yPos;
+        }
+        void addTask(task * toAdd)
+        {
+            tasks.push_back(toAdd);
+        }
+        void doTasks(int Time)
+        {
+            if (tasks.empty()) return;
+            if (tasks.front()->timeToComplete <= Time)
+            {
+                if (tasks.front()->doTask())
+                {
+                    tasks.pop_front();
+                }
+                else
+                {
+                    tasks.front()->timeToComplete++;
+                }
+            }
+            else
+            {
+                tasks.front()->timeToComplete -= Time;
+            }
         }
 
 };
@@ -184,30 +270,7 @@ typedef enum direction
     WEST
 }direction;
 
-class task
-{
-    public:
-        int timeToComplete;
-        person* assignedPerson;
-        task() 
-        {
 
-        }
-        task(int timeToComplete, person* assignedPerson)
-        {
-            this->timeToComplete = timeToComplete;
-            this->assignedPerson = assignedPerson;
-        }
-        void progressTime(int timeToProgress)
-        {
-            timeToComplete -= timeToProgress;
-            if (timeToComplete <= 0)
-            {
-                doTask();
-            }
-        }
-        virtual void doTask() = 0;
-};
 
 class moveTask : virtual public task
 {
@@ -224,41 +287,52 @@ class moveTask : virtual public task
 
         }
 
-        void doTask() override
+        int doTask() override
         {
-
             switch (directionToMove)
             {
             case NORTH:
-                if (assignedPerson->yPos == 0) return;
+                if (assignedPerson->yPos == 0) return 0;
+                if (assignedPerson->attachedMap->tileAt(assignedPerson->xPos, assignedPerson->yPos - 1)->personHere != NULL) return 0;
                 assignedPerson->attachedMap->tileAt(assignedPerson->xPos, assignedPerson->yPos)->personHere = NULL;
                 assignedPerson->attachedMap->tileAt(assignedPerson->xPos, assignedPerson->yPos - 1)->personHere = assignedPerson;
+                assignedPerson->attachedMap->updateRectangle(assignedPerson->xPos, assignedPerson->yPos);
                 assignedPerson->yPos--;
-                return;
+                assignedPerson->attachedMap->updateRectangle(assignedPerson->xPos, assignedPerson->yPos);
+                return 1;
                 break;
             case SOUTH:
-                if (assignedPerson->yPos == assignedPerson->attachedMap->verticalSize) return;
+                if (assignedPerson->yPos == assignedPerson->attachedMap->verticalSize) return 0;
+                if (assignedPerson->attachedMap->tileAt(assignedPerson->xPos, assignedPerson->yPos + 1)->personHere != NULL) return 0;
                 assignedPerson->attachedMap->tileAt(assignedPerson->xPos, assignedPerson->yPos)->personHere = NULL;
                 assignedPerson->attachedMap->tileAt(assignedPerson->xPos, assignedPerson->yPos + 1)->personHere = assignedPerson;
+                assignedPerson->attachedMap->updateRectangle(assignedPerson->xPos, assignedPerson->yPos);
                 assignedPerson->yPos++;
-                return;
+                assignedPerson->attachedMap->updateRectangle(assignedPerson->xPos, assignedPerson->yPos);
+                return 1;
                 break;
             case WEST:
-                if (assignedPerson->xPos == 0) return;
+                if (assignedPerson->xPos == 0) return 0;
+                if (assignedPerson->attachedMap->tileAt(assignedPerson->xPos - 1, assignedPerson->yPos)->personHere != NULL) return 0;
                 assignedPerson->attachedMap->tileAt(assignedPerson->xPos, assignedPerson->yPos)->personHere = NULL;
                 assignedPerson->attachedMap->tileAt(assignedPerson->xPos - 1, assignedPerson->yPos)->personHere = assignedPerson;
+                assignedPerson->attachedMap->updateRectangle(assignedPerson->xPos, assignedPerson->yPos);
                 assignedPerson->xPos--;
-                return;
+                assignedPerson->attachedMap->updateRectangle(assignedPerson->xPos, assignedPerson->yPos);
+                return 1;
                 break;
             case EAST:
-                if (assignedPerson->xPos == assignedPerson->attachedMap->verticalSize) return;
+                if (assignedPerson->xPos == assignedPerson->attachedMap->verticalSize) return 0;
+                if (assignedPerson->attachedMap->tileAt(assignedPerson->xPos + 1, assignedPerson->yPos)->personHere != NULL) return 0;
                 assignedPerson->attachedMap->tileAt(assignedPerson->xPos, assignedPerson->yPos)->personHere = NULL;
                 assignedPerson->attachedMap->tileAt(assignedPerson->xPos + 1, assignedPerson->yPos)->personHere = assignedPerson;
+                assignedPerson->attachedMap->updateRectangle(assignedPerson->xPos, assignedPerson->yPos);
                 assignedPerson->xPos++;
-                return;
+                assignedPerson->attachedMap->updateRectangle(assignedPerson->xPos, assignedPerson->yPos);
+                return 1;
                 break;
             default:
-                return;
+                return 0;
             }
         }
 };
@@ -273,49 +347,9 @@ class moveTask : virtual public task
 
 
 
-class mapMode
-{
-    public:
-        virtual sf::Color getTileColor(int x, int y, worldMap toDisplay) = 0;
-};
 
-class elevationMap : virtual public mapMode
-{
-    public:
-        sf::Color getTileColor(int x, int y, worldMap toDisplay) override
-        {
-            unsigned int colorScale = (unsigned int) (127 * (1+toDisplay.mapTiles[y*toDisplay.horizontalSize + x].elevation/(1+toDisplay.maxElevation())));
-            return sf::Color(colorScale,colorScale,colorScale);
-        }
-};
 
-class defaultMap : virtual public mapMode
-{
-    public:
-        sf::Color getTileColor(int x, int y, worldMap toDisplay) override
-        {
-            if(toDisplay.tileAt(x,y)->personHere!=NULL) return sf::Color(0, 255, 0);
-            if(toDisplay.mapTiles[y*toDisplay.horizontalSize + x].waterDepth()>0.01f) return sf::Color(62,164,240);
-            unsigned int colorScale = (unsigned int) (127 * (1-toDisplay.mapTiles[y*toDisplay.horizontalSize + x].elevation/(1+toDisplay.maxElevation())));
-            return sf::Color(colorScale,colorScale,colorScale);
-        }
-    
-};
 
-class resourceMap : virtual public mapMode
-{
-    public:
-        int resourceIndex;
-        sf::Color getTileColor(int x, int y, worldMap toDisplay) override
-        {
-            unsigned int colorScale = (unsigned int)(127 * (1 - toDisplay.mapTiles[y * toDisplay.horizontalSize + x].resourceQuantity.at(resourceIndex) / (1 + toDisplay.maxResourceValue(resourceIndex))));
-            return sf::Color(colorScale, colorScale, colorScale);
-        }
-        resourceMap(int resourceIndex)
-        {
-            this->resourceIndex = resourceIndex;
-        }
-};
 
 class Resource
 {
@@ -333,7 +367,6 @@ public:
     }
     void registerResource(worldMap * map)
     {
-        printf("%d", map->resourceNames.size());
         map->resourceNames.push_back(name);
 
 
@@ -369,10 +402,47 @@ public:
 void addPerson(person * personToAdd)
 {
     personToAdd->attachedMap->tileAt(personToAdd->xPos, personToAdd->yPos)->personHere = personToAdd;
+    personToAdd->attachedMap->updateRectangle(personToAdd->xPos, personToAdd->yPos);
 }
 
 
+class elevationMap : virtual public mapMode
+{
+public:
+    sf::Color getTileColor(int x, int y, worldMap toDisplay) override
+    {
+        unsigned int colorScale = (unsigned int)(127 * (1 + toDisplay.mapTiles[y * toDisplay.horizontalSize + x].elevation / (1 + toDisplay.maxElevation())));
+        return sf::Color(colorScale, colorScale, colorScale);
+    }
+};
 
+class defaultMap : virtual public mapMode
+{
+public:
+    sf::Color getTileColor(int x, int y, worldMap toDisplay) override
+    {
+        if (toDisplay.tileAt(x, y)->personHere != NULL) return sf::Color(0, 255, 0);
+        if (toDisplay.mapTiles[y * toDisplay.horizontalSize + x].waterDepth() > 0.0f) return sf::Color(62, 164, 240);
+        unsigned int colorScale = (unsigned int)(127 * (1 - toDisplay.mapTiles[y * toDisplay.horizontalSize + x].elevation / (1 + toDisplay.maxElevation())));
+        return sf::Color(colorScale, colorScale, colorScale);
+    }
+
+};
+
+class resourceMap : virtual public mapMode
+{
+public:
+    int resourceIndex;
+    sf::Color getTileColor(int x, int y, worldMap toDisplay) override
+    {
+        unsigned int colorScale = (unsigned int)(127 * (1 - toDisplay.mapTiles[y * toDisplay.horizontalSize + x].resourceQuantity.at(resourceIndex) / (1 + toDisplay.maxResourceValue(resourceIndex))));
+        return sf::Color(colorScale, colorScale, colorScale);
+    }
+    resourceMap(int resourceIndex)
+    {
+        this->resourceIndex = resourceIndex;
+    }
+};
 
 
 
